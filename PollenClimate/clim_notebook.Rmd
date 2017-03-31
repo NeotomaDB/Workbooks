@@ -127,7 +127,7 @@ map <- leaflet(width = 400, height = 400) %>%
 locations <- can_sites %>% get_site
 
 map %>% addMarkers(lng = locations$long, lat = locations$lat, 
-                   popup = paste0('<b>', as.character(locations$site.name), '</b><br>',
+                   popup = paste0('<b>', as.character(~site.name), '</b><br>',
                                   '<a href=http://apps.neotomadb.org/explorer/?datasetid=', datasets, '>Explorer Link</a>'))
 
 ```
@@ -183,7 +183,7 @@ Model support is highest for $P_{jja}$, with two of three models (WA, WAPLS) sup
 
 Winter precipitation ($P_{djf}$) is only supported in two models that exclude *Pinus*, WAPLS and MAT.  Summer temperature ($T_{jja}$) is supported with *Pinus* for WA and MAT, and for MAT without *Pinus*.  Annual temperature ($T_{ann}$) is only supported by MAT when *Pinus* is included.
 
-```{r Pine_reconst, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r clim_reconst, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
 # I'm getting a warning that some pollen_pct is showing zero dists, but I don't see them. . . 
 if ("mat_reconst.RDS" %in% list.files("data/output")) {
@@ -219,7 +219,7 @@ if ("wapls_reconst.RDS" %in% list.files("data/output")) {
 
 ```
 
-```{r plot_Pine_reconst, fig.width=8, fig.height=9, echo=FALSE}
+```{r plot_reconst, fig.width=8, fig.height=9, echo=FALSE}
 
 get_clim <- lapply(1:8, function(x) { 
   data.frame(age = 1:nrow(wa_reconst[[x]]$fit),
@@ -238,79 +238,18 @@ ggplot(get_clim, aes(x = age, y = reconst)) + geom_line(aes(col = model)) +
   geom_ribbon(aes(ymin = reconst - err, ymax = reconst + err, group = model), alpha = 0.2) +
   facet_wrap(~climate, scales = 'free', ncol = 2) +
   xlab("Age - kyr BP") +
-  ylab("Reconstructed Parameter") +
-  ggtitle("With Pinus")
+  ylab("Reconstructed Parameter")
 
 ```
 
-### Without *Pinus*
+# Saving to file
 
-```{r no_Pine_reconst, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+Ultimately, you would want to save values to file.  Your preference for the savefile structure will vary.  Here we are exporting two files, one with error and one with the raw reconstructions.  This implies a folder structure that I like, which is having a project `data` folder with both `input` and `output` sub-directories.  This helps keep your data files separated.  You might want to go further and add version numbers to the output files.  I'll leave that up to the user's discretion.
 
-# I'm getting a warning that some pollen_pct_np is showing zero dists, but I don't see them. . . 
-if ("mat_reconst_np.RDS" %in% list.files("data/output")) {
-  mat_reconst_np <- readRDS(file = 'data/output/mat_reconst_np.RDS')
-} else {
-  mat_reconst_np <- lapply(1:8, function(x) { predict(rioja::MAT(y = pollen_pct_np, 
-                                                              x = clim[,x], 
-                                                              k = 10, lean = FALSE),
-                                                   newdata = orhid_pol, sse = TRUE) })
-  saveRDS(mat_reconst_np, file = 'data/output/mat_reconst_np.RDS')
-}
-  
-if ("wa_reconst_np.RDS" %in% list.files("data/output")) {
-  wa_reconst_np <- readRDS(file = 'data/output/wa_reconst_np.RDS')
-} else {
-  wa_reconst_np <-  lapply(1:8, function(x) { predict(rioja::WA(y = pollen_pct_np, 
-                                                              x = clim[,x], 
-                                                              mono = TRUE, lean = FALSE),
-                                                   newdata = orhid_pol, sse = TRUE) })
-  saveRDS(wa_reconst_np, file = 'data/output/wa_reconst_np.RDS')
-}
-
-if ("wapls_reconst.RDS" %in% list.files("data/output")) {
-  wapls_reconst_np <- readRDS(file = 'data/output/wapls_reconst_np.RDS')
-} else {
-  wapls_reconst_np <- lapply(1:8, function(x) { predict(rioja::WAPLS(y = pollen_pct_np, 
-                                                                  x = clim[,x], 
-                                                                  npls = 4, lean = FALSE),
-                                                     newdata = orhid_pol, sse = TRUE) })
-  saveRDS(wapls_reconst_np, file = 'data/output/wapls_reconst_np.RDS')
-}
-
-```
-
-```{r plot_reconst_wop, fig.width=8, fig.height=9, echo=FALSE}
-
-# Now make a huge data.frame:
-get_clim_wop <- lapply(1:8, function(x) { 
-      data.frame(age = 1:nrow(wa_reconst_np[[x]]$fit),
-                 reconst = c(wa_reconst_np[[x]]$fit[,3],
-                             wapls_reconst_np[[x]]$fit[,4],
-                             mat_reconst_np[[x]]$fit[,1]),
-                 err     = c(wa_reconst_np[[x]]$SEP[,3],
-                             wapls_reconst_np[[x]]$SEP[,4],
-                             mat_reconst_np[[x]]$SEP[,1]),
-                 model   = rep(c("WA", "WAPLS", "MAT"), 
-                               each = length(orhid_ages)),
-                 climate = colnames(clim)[x])}) %>% 
-      do.call(rbind.data.frame,.)
-
-ggplot(get_clim_wop, aes(x = age, y = reconst)) + geom_line(aes(col = model)) +
-  geom_ribbon(aes(ymin = reconst - err, ymax = reconst + err, group = model), alpha = 0.2) +
-  facet_wrap(~climate, scales = 'free', ncol = 2) +
-  xlab("Age - kyr BP") +
-  ylab("Reconstructed Parameter") +
-  ggtitle("Without Pinus")
-
+```r
 write.csv(reshape2::dcast(get_clim, age ~ model + climate, value.var = "reconst"), 
-          "data/output/w_pine_reconst.csv", row.names = orhid_ages)
+          "data/output/clim_reconst.csv")
 write.csv(reshape2::dcast(get_clim, age ~ model + climate, value.var = "err"), 
-          "data/output/w_pine_err.csv", row.names = orhid_ages)
-
-write.csv(reshape2::dcast(get_clim_wop, age ~ model + climate, value.var = "reconst"), 
-          "data/output/wo_pine_reconst.csv", row.names = orhid_ages)
-write.csv(reshape2::dcast(get_clim_wop, age ~ model + climate, value.var = "err"),
-          "data/output/wo_pine_err.csv", row.names = orhid_ages)
+          "data/output/clim_err.csv")
 
 ```
