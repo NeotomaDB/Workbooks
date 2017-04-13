@@ -9,7 +9,7 @@ output:
     toc_float: true
     number_sections: true
     code_folding: show
-
+    keep_md: true
 ---
 
 ```{r setup, include=FALSE}
@@ -17,11 +17,19 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 library(dplyr, quietly = TRUE)
 library(ggplot2)
+library(purrr)
 suppressMessages(library(palaeoSig, quietly = TRUE))
 suppressMessages(library(rioja, quietly = TRUE))
 suppressMessages(library(analogue, quietly = TRUE))
 suppressMessages(library(neotoma, quietly = TRUE))
 ```
+# Introduction
+
+Pollen-based climate reconstruction is a widely used technique for understanding past climate.  Pollen-based modelling is often highly technical, and requirs a solid understanding of paleoecological processes, ecological knowledge of forest commnuity and species affinities along climate gradients, technical understanding of chronology construction and model fitting.  At the same time, the people who undertake this activity are often graduate students, working in programs that do not include specific units on paleoecology (in some cases) or pollen-based climate reconstruction (in most cases).
+
+In this vignette we will use open-source tools from the [Comprehensive R Archive Network](https://cran.r-project.org/) to reconstruct a single climate record from a site in Canada.  To do this we will first test the calibration dataset against climate data, both from the North American Modern Pollen Database, we will then pick one target climate variable for reconstruction and perform reconstructions using three models, Weighted Averaging with monotone smooth deshrinking, Weighted Averaging Partial Least Squares and the Modern Analogue Technique.
+
+To first evaluate the models we need to see how well the work with the underlying climate data:
 
 # Model Diagnostics
 
@@ -32,6 +40,8 @@ suppressMessages(library(neotoma, quietly = TRUE))
 data(Pollen)   # Adds the pollen from analogue.
 data(Climate)  # Adds associated climate.
 
+Pollen[is.na(Pollen)] <- 0
+
 # There's currently a bug in the `analogue` package.
 colnames(Climate)[1:3] <- c('tjan', 'tfeb', 'tmar')
 
@@ -39,9 +49,11 @@ data(Location)
 
 ```
 
-The Modern Pollen Database stored in `analogue` contains `r nrow(Pollen)` samples, representing `r ncol(Pollen)` different pollen taxa.
+The Modern Pollen Database stored in `analogue` contains `r nrow(Pollen)` samples, representing `r ncol(Pollen)` different pollen taxa.  The data was obtained from the Whitmore et al (2008) North American Modern Pollen Database.  The raw data can be obtained from one of two sources [the Laboratory for Paleoclimatology and Climatology](http://www.lpc.uottawa.ca/data/modern/) at the University of Ottawa and [the Williams Paleoecology Lab](http://www.geography.wisc.edu/faculty/williams/lab/Downloads.html) at the University of Wisconsin. Modern pollen data is available from the [Neotoma Paleoecology Database](http://neotomadb.org), although the complete North American Modern Pollen Database has not yet been uploaded to Neotoma.
 
 ## Checking the Transfer Functions
+
+Considerable work has been put into understanding transfer functions and challenges associated with their construction, implementation and interpretation.  I suggest taking some time to understand the basic theory, starting with the excellent review by Birks et al. in the Journal of Open Ecology [link].  Telford and Birks [ref needed] and others have pointed to the need for more rigorous validation of models, and this vignette is a first step at addressing some of the issues.  As this vignette is developed further I will add more robust cross-validation.
 
 ### Checking the calibration data set
 
@@ -49,7 +61,7 @@ To test the models I used the `palaeoSig` package's `randomTS()` function, which
 
 In each case these methods are simply testing whether the modern calibration is able to detect signals in each of the climate parameters.  The example here uses the entire North American Modern Pollen Database, rather than a targeted data subset.  It also uses the climate variables provided with the dataset.  For a given research application it may be better to specifically choose a particular climate variable (or climate subset) or obtain new climatic data from a more recent downscaled climate data product, for example WorldClim or PRISM.
 
-##### WA - Monotone Deshrinking
+#### WA - Monotone Deshrinking
 
 ```{r WA_SigTesting_pine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
@@ -63,9 +75,9 @@ wa_sig <- run_tf(pollen = Pollen,
 wa_sig[[1]]
 ```
 
-Weighted Averaging results using monotone deshrinking on subsets of the pollen data indicate that there is significance in reconstructions of most temperature parameters, while precipitation variables are not significant.  While temperature variables are significant, this relatively naive approach indicates that there is a relatively low proportion of variance explained by the temperature reconstructions.
+Weighted Averaging results using monotone deshrinking on subsets of the pollen data indicate that there is significance in reconstructions of most temperature parameters, while precipitation variables are not significant.  While temperature variables are significant, this relatively naive approach indicates that there is a relatively low proportion of variance explained by the temperature reconstructions, and that the vegetation (or at least the pollen representation of the regional vegetation) is most strongly affected by summer temperatures.
 
-##### WAPLS (Four components)
+#### WAPLS (Four components)
 
 ```{r WAPLS_sigtesting_Pine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
@@ -77,9 +89,9 @@ wapls_sig[[1]]
 
 ```
 
-For WAPLS all models show significance, but explain very little of the overall variance.  We probably shouldn't use WAPLS given this assessment.
+For WAPLS we see the same pattern as with WA.  Temperature variables all show significance, they explain low variance and winter temperatures show higher variance explained than summer variables.
 
-##### MAT - ten closest
+#### MAT - ten closest
 
 ```{r MAT_sigtesting_Pine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
@@ -89,9 +101,10 @@ mat_sig <- run_tf(pollen = Pollen,
                   func = MAT, col = 1, k = 10)
 mat_sig[[1]]
 
+
 ```
 
-Again, significance for all parameters, but very little variance explained.
+Reconstructions for MAT show even lower variance explained (although a similar pattern) than the other methods.  This is surprising, in part because MAT often shows better fit as a result of spatial autocorrelation. The very weak variance explained for some variables (`pdec` for example) paired with high significance (p < 0.01), also indicates the risks of choosing variables soley based on `p` value.  It should also be noted that the pattern of variance explained here, and elsewhere represents the impact of temporal autocorrelation on temperature (and, less so) on precipitation variables.
 
 # Reconstruction Statistics
 
@@ -103,20 +116,21 @@ Now we test to see which of the fossil assemblage reconstructions show significa
 
 Then we apply a reconstruction to a real dataset.  In this case we will select a record with coverage across multiple timescales.  For the sake of this example, we'll restrict the analysis to a record from Canada.
 
-```{r}
+```{r, can_sites, echo=TRUE, message=FALSE, warning=FALSE}
 can_sites <- neotoma::get_dataset(ageold = 12000, 
                                   ageyoung = -50, 
                                   gpid = 'Canada',
                                   datasettype = 'pollen')
 
+
+datasets <- can_sites %>% map_int(function(x) x$dataset.meta$dataset.id)
+
 ```
 This returns `r length(can_sites)` sites.  The `neotoma` package provides plotting capabilities, but they are rudimentary.  To provide interactive plotting we plot the sites dynamically using `leaflet`.  This isn't something you need to do, but it does help showcase the flexibility of R:
 
-```{r}
+```{r, echo = TRUE, warning=TRUE, echo=FALSE}
 
 library(leaflet)
-
-datasets <- sapply(can_sites, function(x) x$dataset.meta$dataset.id)
 
 map <- leaflet(width = 400, height = 400) %>% 
   addTiles %>% 
@@ -130,48 +144,78 @@ map %>% addMarkers(lng = locations$long, lat = locations$lat,
                    popup = paste0('<b>', as.character(~site.name), '</b><br>',
                                   '<a href=http://apps.neotomadb.org/explorer/?datasetid=', datasets, '>Explorer Link</a>'))
 
+
+crawford <- get_download(can_sites[[49]])
+
 ```
 
+Data record `49` within the Canadian data represents Crawford Lake, Ontario, [a record published](https://doi.org/10.1016/S0034-6667(96)00060-7) by Zicheng Yu in 1997.  The record spans 14000 years, and is impressive, both for its resolution, but also for the story it tells of environmental change at the site.
+
+```{r}
+
+analogue::Stratiplot(crawford)
+
+```
+
+Knowing that our methods, using the complete North American dataset, generate fairly weak reconstructions for precipitation, we will focus on a reconstruction of winter teperature for this record (`tjan` for simplicity's sake).  We also want to clean up our data sets a bit:
+
+```{r, warning=FALSE, echo=FALSE, results='hide'}
+
+fossil_data <-  crawford %>% 
+  compile_taxa(list.name = "WhitmoreFull") %>% 
+  compile_downloads()
+
+# Prediction requires the addition of all Pollen taxa:
+
+fossil_data <- fossil_data %>% bind_rows(as.data.frame(Pollen[1,]))
+fossil_data <- fossil_data[-nrow(fossil_data),]
+fossil_data[is.na(fossil_data)] <- 0
+
+fossil_data <- fossil_data[,colnames(Pollen)]
+
+```
 
 #### WA - Monotone Deshrinking
 
 ```{r WA_SigTesting, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
-fossil_data <- get_download(can_sites[[49]]) %>% 
-  compile_taxa(list.name = "WhitmoreFull") %>% 
-  compile_downloads()
-
-run_tf(Pollen, fossil = fossil_data[,11:ncol(fossil_data)], 
-       climate = Climate,
+wa_reconst <- run_tf(Pollen, fossil = fossil_data, 
+       climate = Climate[,1],
        func = WA, col = 1, mono = TRUE)
+
+wa_reconst[[1]]
 
 ```
 
-Weighted Averaging results change, as expected.  The dataset is smaller overall, so there is higher total variance explained, and the threshold for significance is also higher.  $P_{jja}$ can explain 64% of the total variance in the fossil pollen dataset.  $T_{jja}$ can explain 62% of total variance.
+Weighted Averaging results change, as expected.  We now see that even though the calibration dataset appears to produce a significant model for january temperature, the result is a reconstruction that shows no significant change over the last 14,000 years.  To save you the trouble, changing `Climate[,1]` to `Climate` (*i.e.* reconstructing all variables in the hopes of $p$-hacking) doesn't help.  The record itself has no significant change over the time for any variable.
 
 #### WAPLS (Four components)
 
 ```{r WAPLS_sigtesting, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
-run_tf(Pollen, fossil = fossil_data[,11:ncol(fossil_data)], 
-       climate = Climate,
+wapls_reconst <- run_tf(Pollen, fossil = fossil_data, 
+       climate = Climate[,1],
        func = WAPLS, col = 3) 
+
+wapls_reconst[[1]]
 
 ```
 
-With WAPLS we se no significance for temperature variables, only $P_{jja}$ and $P_{ann}$, along with $E:PE$, which may be tied to the combination of seasonal and annual precipitation parameters.
+With WAPLS we se no significance for `tjan`, the reconstructed temperature here, but, as with WA, no significance for any of the tested variable.
 
 #### MAT - ten closest
 
 ```{r MAT_sigtesting_fPine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
-run_tf(Pollen, fossil = fossil_data[,11:ncol(fossil_data)], 
-       climate = Climate, 
+mat_reconst <- run_tf(Pollen, fossil = fossil_data, 
+       climate = Climate[,1:2], 
        func = MAT, col = 2, k = 10) 
+
+mat_reconst[[1]]
 
 ```
 
-The randomization procedure appears to indicate that the variance explained by $P_{ann}$, $E:PE$ and $T_{jja}$ are all significant in this case.
+Again, no significance for any of the models.  This indicates that we're just not able to see a signal within the data, but, as I noted before, the calibration dataset used here is likely overly broad.
 
 ## Reconstruction
 
@@ -179,30 +223,27 @@ Once we have validated the methods, we re-run the analysis using each of the thr
 
 ### Model Summary
 
-Model support is highest for $P_{jja}$, with two of three models (WA, WAPLS) supporting it with *Pinus*, and all three supporting it without *Pinus*.  Annual precipitation is supported by the same number of models as $P_{jja}$, except that it is supported with *Pinus* for MAT, and not for WA (the reverse is true for $P_{jja}$). 
-
-Winter precipitation ($P_{djf}$) is only supported in two models that exclude *Pinus*, WAPLS and MAT.  Summer temperature ($T_{jja}$) is supported with *Pinus* for WA and MAT, and for MAT without *Pinus*.  Annual temperature ($T_{ann}$) is only supported by MAT when *Pinus* is included.
-
 ```{r clim_reconst, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
 
-# I'm getting a warning that some pollen_pct is showing zero dists, but I don't see them. . . 
+# This often takes a long time, so I'm using a little trick to get past this point:
+
 if ("mat_reconst.RDS" %in% list.files("data/output")) {
   mat_reconst <- readRDS(file = 'data/output/mat_reconst.RDS')
 } else {
-  mat_reconst <- lapply(1:8, function(x) { predict(rioja::MAT(y = pollen_pct_p, 
-                                                              x = clim[,x], 
-                                                              k = 10, lean = FALSE),
-                                                   newdata = orhid_pol, sse = TRUE) })
+  mat_reconst <- predict(rioja::MAT(y = Pollen, 
+                                    x = Climate[,1], 
+                                    k = 10, lean = FALSE),
+                         newdata = fossil_data, 
+                         sse = TRUE)
   saveRDS(mat_reconst, file = 'data/output/mat_reconst.RDS')
 }
   
 if ("wa_reconst.RDS" %in% list.files("data/output")) {
   wa_reconst <- readRDS(file = 'data/output/wa_reconst.RDS')
 } else {
-  wa_reconst <-  lapply(1:8, function(x) { predict(rioja::WA(y = pollen_pct_p, 
-                                                              x = clim[,x], 
-                                                              mono = TRUE, lean = FALSE),
-                                                   newdata = orhid_pol, sse = TRUE) })
+  wa_reconst <-  predict(rioja::WA(y = tran(Pollen, method = 'proportion'), 
+                                   x = Climate[1,], lean = FALSE),
+                         newdata = fossil_data, sse = TRUE)
   saveRDS(wa_reconst, file = 'data/output/wa_reconst.RDS')
 }
 
@@ -210,10 +251,11 @@ if ("wapls_reconst.RDS" %in% list.files("data/output")) {
   wapls_reconst <- readRDS(file = 'data/output/wapls_reconst.RDS')
 } else {
 
-  wapls_reconst <- lapply(1:8, function(x) { predict(rioja::WAPLS(y = pollen_pct_p, 
-                                                                  x = clim[,x], 
-                                                                  npls = 4, lean = FALSE),
-                                                     newdata = orhid_pol, sse = TRUE) })
+  wapls_reconst <- predict(rioja::WAPLS(y = Pollen,
+                                        x = Climate[,1], 
+                                        npls = 4, lean = FALSE),
+                          newdata = fossil_data, sse = TRUE)
+
   saveRDS(wapls_reconst, file = 'data/output/wapls_reconst.RDS')
 }
 
@@ -221,18 +263,16 @@ if ("wapls_reconst.RDS" %in% list.files("data/output")) {
 
 ```{r plot_reconst, fig.width=8, fig.height=9, echo=FALSE}
 
-get_clim <- lapply(1:8, function(x) { 
-  data.frame(age = 1:nrow(wa_reconst[[x]]$fit),
-             reconst = c(wa_reconst[[x]]$fit[,3],
-                         wapls_reconst[[x]]$fit[,4],
-                         mat_reconst[[x]]$fit[,1]),
-             err     = c(wa_reconst[[x]]$SEP[,3],
-                         wapls_reconst[[x]]$SEP[,4],
-                         mat_reconst[[x]]$SEP[,1]),
-             model   = rep(c("WA", "WAPLS", "MAT"), 
-                           each = length(orhid_ages)),
-             climate = colnames(clim)[x])}) %>% 
-  do.call(rbind.data.frame,.)
+get_clim <-  data.frame(age = 1:nrow(wa_reconst$fit),
+                        reconst = c(wa_reconst$fit[,1],
+                                     wapls_reconst$fit[,4],
+                                     mat_reconst$fit[,1]),
+                         err     = c(wa_reconst$SEP.boot[,1],
+                                     wapls_reconst$SEP[,4],
+                                     mat_reconst$SEP[,1]),
+                         model   = rep(c("WA", "WAPLS", "MAT"), 
+                                       each = nrow(fossil_data)),
+                         climate = 'tjan')
 
 ggplot(get_clim, aes(x = age, y = reconst)) + geom_line(aes(col = model)) +
   geom_ribbon(aes(ymin = reconst - err, ymax = reconst + err, group = model), alpha = 0.2) +
