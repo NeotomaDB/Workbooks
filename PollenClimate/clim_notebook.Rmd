@@ -3,10 +3,10 @@ title: "Pollen-based Climate Reconstruction"
 author: 'Simon Goring'
 output: 
   html_document:
-    theme: journal
+    theme: sandstone
     toc: true
     toc_depth: 3
-    toc_float: true
+    toc_float: false
     number_sections: true
     code_folding: show
     keep_md: true
@@ -15,14 +15,16 @@ output:
 ```{r setup, include=FALSE}
 
 knitr::opts_chunk$set(echo = TRUE)
-library(dplyr, quietly = TRUE)
-library(ggplot2)
-library(purrr)
+
+suppressMessages(library(dplyr, quietly = TRUE))
+suppressMessages(library(ggplot2, quietly = TRUE))
+suppressMessages(library(purrr, quietly = TRUE))
 suppressMessages(library(palaeoSig, quietly = TRUE))
 suppressMessages(library(rioja, quietly = TRUE))
 suppressMessages(library(analogue, quietly = TRUE))
 suppressMessages(library(neotoma, quietly = TRUE))
 ```
+
 # Introduction
 
 Pollen-based climate reconstruction is a widely used technique for understanding past climate.  Pollen-based modelling is often highly technical, and requirs a solid understanding of paleoecological processes, ecological knowledge of forest commnuity and species affinities along climate gradients, technical understanding of chronology construction and model fitting.  At the same time, the people who undertake this activity are often graduate students, working in programs that do not include specific units on paleoecology (in some cases) or pollen-based climate reconstruction (in most cases).
@@ -37,15 +39,16 @@ To first evaluate the models we need to see how well the work with the underlyin
 
 # Load all the files & cross-check:
 
-data(Pollen)   # Adds the pollen from analogue.
-data(Climate)  # Adds associated climate.
+data(Pollen)   # Adds the pollen from the `analogue` package.
+data(Climate)  # Adds associated climate, also from the `analogue` package.
 
 Pollen[is.na(Pollen)] <- 0
 
 # There's currently a bug in the `analogue` package.
 colnames(Climate)[1:3] <- c('tjan', 'tfeb', 'tmar')
 
-data(Location)
+# This loads the spatial data, 
+data(Location)  
 
 ```
 
@@ -101,7 +104,6 @@ mat_sig <- run_tf(pollen = Pollen,
                   func = MAT, col = 1, k = 10)
 mat_sig[[1]]
 
-
 ```
 
 Reconstructions for MAT show even lower variance explained (although a similar pattern) than the other methods.  This is surprising, in part because MAT often shows better fit as a result of spatial autocorrelation. The very weak variance explained for some variables (`pdec` for example) paired with high significance (p < 0.01), also indicates the risks of choosing variables soley based on `p` value.  It should also be noted that the pattern of variance explained here, and elsewhere represents the impact of temporal autocorrelation on temperature (and, less so) on precipitation variables.
@@ -132,7 +134,7 @@ This returns `r length(can_sites)` sites.  The `neotoma` package provides plotti
 
 library(leaflet)
 
-map <- leaflet(width = 400, height = 400) %>% 
+map <- leaflet(width = 800, height = 800) %>% 
   addTiles %>% 
   setView(lng = -100,
           lat = 49.263,
@@ -250,7 +252,7 @@ if ("wa_reconst.RDS" %in% list.files("data/output")) {
 if ("wapls_reconst.RDS" %in% list.files("data/output")) {
   wapls_reconst <- readRDS(file = 'data/output/wapls_reconst.RDS')
 } else {
-
+  
   wapls_reconst <- predict(rioja::WAPLS(y = Pollen,
                                         x = Climate[,1], 
                                         npls = 4, lean = FALSE),
