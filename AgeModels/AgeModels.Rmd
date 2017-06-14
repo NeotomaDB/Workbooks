@@ -1,0 +1,103 @@
+---
+title: "Age model and chronology construction"
+author: 'Simon Goring'
+output: 
+  html_document:
+    theme: sandstone
+    toc: true
+    toc_depth: 3
+    toc_float: false
+    number_sections: true
+    code_folding: show
+    keep_md: true
+---
+
+# Building Chronologies
+
+Time is central to understanding paleoecological change.  For this reason, having reliable and robust chronologies within paleoecological analysis is critical for understanding change.  This workbook will illustrate simple workflows for generating three of the most commonly used age models (clasical, Bacon and BChron), and for understanding their outputs.
+
+## Work Plan
+
+This workbook will show the user how to:
+
+  * Obtain data from the Neotoma Paleoecological Database
+  * Work with Neotoma's reported chronologies & understand their strengths & weaknesses
+  * Obtain the raw geochronological data for a record
+  * Build an age model using the chronological data using the Bayesian method in `BChron`
+
+# Obtaining data from the Neotoma Paleoecological Database
+
+Data from Neotoma can be accessed using the `neotoma` package for R.  To download data from Neotoma we first need to load the library and issue a request for data.  Neotoma can return site information, more complete dataset information and the full download information.  Let's start by looking at datasets with pollen information.
+
+```r
+install.packages('neotoma')
+```
+
+Now, let's search for data and see what we get:
+
+```{r, echo = TRUE, warning=FALSE, message=FALSE}
+library(neotoma)
+library(analogue)
+library(Bchron)
+
+pollen_sites <- get_dataset(datasettype = 'pollen', gpid = 'Switzerland')
+
+pollen_sites
+```
+
+This returns `r length(pollen_sites)` datasets for Switzerland.  You can access the help for `get_dataset()` using the R command `?get_dataset`, and you can then see more information about search terms available.
+
+Given these datasets, we might as well choose one to download.  In this case, we will be using the Lobisigensee record.  This pollen record is dataset `4213`, part of the European Pollen Database, and we can see more information about the dataset by using the `browse()` function in the `neotoma` package:
+
+```r
+browse(4213)
+```
+
+The record seems well constructed, but we will use it to illustrate reconstruction using `BChron`.  First, we will download the dataset:
+
+```{r}
+lob_pol <- get_download(pollen_sites$`4213`)
+Stratiplot(lob_pol, sort = 'wa', group="TRSH")
+```
+
+# Building the Age Model
+
+The age model is stored within a `download` object's `sample.meta` element.  There is a helper function in the `neotoma` package, `ages()`:
+
+```r
+ages(lob_pol[[1]])
+```
+```{r, echo = FALSE}
+knitr::kable(head(ages(lob_pol[[1]])))
+```
+
+These ages are the result of the construction of a chronology.  In the case of the Lobisigensee record we can use the command `length(lob_pol[[1]]$chronologies)` to see that there is only one single chronology.  The function `get_chroncontrol()` provides us with the chronological controls used to generate the age model:
+
+```{r, message = FALSE, warning=FALSE, results='hide'}
+lob_chron <- get_chroncontrol(lob_pol)
+```
+```{r, echo=FALSE}
+lob_chron
+```
+
+With this record we can pull the depths from `lob_pol[[1]]$sample.meta$depth` to predict the model at, and use the chronology controls as the tie points for the chronology.
+
+```{r, echo = TRUE, message = FALSE, warning = FALSE, results = 'hide'}
+
+lob_model <- Bchronology(  ages = lob_chron[[1]]$chron.control$age,
+                         ageSds = lob_chron[[1]]$chron.control$age - lob_chron[[1]]$chron.control$age.young,
+                      positions = lob_chron[[1]]$chron.control$depth,
+            positionThicknesses = lob_chron[[1]]$chron.control$thickness,
+               predictPositions = lob_pol[[1]]$sample.meta$depth)
+
+```
+
+When the model is run it gives us the relatively complex `BchronologyRun` object.  The object itself is described in the help for `Bchronology`.  We can look at the posterior estimates for the model using the `lob_model$thetaPredict` element of the `lob_model` variable.  Here we can see that the posteriors are arranged so that each depth is in a single column, with approximately (or exactly) 1000 rows, representing draws from the predicted distributions.
+
+Given these results, we can use the `plot` function for the chronology:
+
+```{r}
+plot(lob_model)
+```
+
+To then look at the model, and make assessments.  You now have a new age model for your record!
