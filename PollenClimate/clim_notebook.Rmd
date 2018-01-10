@@ -12,7 +12,7 @@ output:
     keep_md: true
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, results='hide'}
 
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -35,7 +35,7 @@ To first evaluate the models we need to see how well the work with the underlyin
 
 # Model Diagnostics
 
-```{r load_files, echo = FALSE, warning=FALSE}
+```{r load_files, echo = TRUE, warning=FALSE}
 
 # Load all the files & cross-check:
 
@@ -66,13 +66,13 @@ In each case these methods are simply testing whether the modern calibration is 
 
 #### WA - Monotone Deshrinking
 
-```{r WA_SigTesting_pine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r WA_SigTesting_pine, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 # This is a wrapper for the randomTF function.
 source('R/sig_test.R')
 
-wa_sig <- run_tf(pollen = Pollen, 
-                 climate = Climate[,1:ncol(Climate)], 
+wa_sig <- run_tf(pollen = Pollen,
+                 climate = Climate[,1:ncol(Climate)],
                  func = WA, col = 1, mono = TRUE)
 
 wa_sig[[1]]
@@ -80,13 +80,13 @@ wa_sig[[1]]
 
 Weighted Averaging results using monotone deshrinking on subsets of the pollen data indicate that there is significance in reconstructions of most temperature parameters, while precipitation variables are not significant.  While temperature variables are significant, this relatively naive approach indicates that there is a relatively low proportion of variance explained by the temperature reconstructions, and that the vegetation (or at least the pollen representation of the regional vegetation) is most strongly affected by summer temperatures.
 
-#### WAPLS (Four components)
+#### WAPLS (Three components)
 
-```{r WAPLS_sigtesting_Pine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r WAPLS_sigtesting_Pine, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 wapls_sig <- run_tf(pollen = Pollen, 
                     climate = Climate[,1:ncol(Climate)], 
-                    func = WAPLS, col = 3) 
+                    func = WAPLS, col = 3)
 
 wapls_sig[[1]]
 
@@ -96,7 +96,7 @@ For WAPLS we see the same pattern as with WA.  Temperature variables all show si
 
 #### MAT - ten closest
 
-```{r MAT_sigtesting_Pine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r MAT_sigtesting_Pine, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 # For some reason this fails consistently when we try to use the weighted MAT (col=2).
 mat_sig <- run_tf(pollen = Pollen, 
@@ -124,7 +124,6 @@ can_sites <- neotoma::get_dataset(ageold = 12000,
                                   gpid = 'Canada',
                                   datasettype = 'pollen')
 
-
 datasets <- can_sites %>% map_int(function(x) x$dataset.meta$dataset.id)
 
 ```
@@ -146,8 +145,7 @@ map %>% addMarkers(lng = locations$long, lat = locations$lat,
                    popup = paste0('<b>', as.character(~site.name), '</b><br>',
                                   '<a href=http://apps.neotomadb.org/explorer/?datasetid=', datasets, '>Explorer Link</a>'))
 
-
-crawford <- get_download(can_sites[[49]])
+crawford <- neotoma::get_download(can_sites[[49]])
 
 ```
 
@@ -161,7 +159,7 @@ analogue::Stratiplot(crawford)
 
 Knowing that our methods, using the complete North American dataset, generate fairly weak reconstructions for precipitation, we will focus on a reconstruction of winter teperature for this record (`tjan` for simplicity's sake).  We also want to clean up our data sets a bit:
 
-```{r, warning=FALSE, echo=FALSE, results='hide'}
+```{r, warning=FALSE, echo=TRUE, results='hide'}
 
 fossil_data <-  crawford %>% 
   compile_taxa(list.name = "WhitmoreFull") %>% 
@@ -179,7 +177,7 @@ fossil_data <- fossil_data[,colnames(Pollen)]
 
 #### WA - Monotone Deshrinking
 
-```{r WA_SigTesting, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r WA_SigTesting, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 wa_reconst <- run_tf(Pollen, fossil = fossil_data, 
        climate = Climate[,1],
@@ -193,7 +191,7 @@ Weighted Averaging results change, as expected.  We now see that even though the
 
 #### WAPLS (Four components)
 
-```{r WAPLS_sigtesting, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r WAPLS_sigtesting, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 wapls_reconst <- run_tf(Pollen, fossil = fossil_data, 
        climate = Climate[,1],
@@ -207,7 +205,7 @@ With WAPLS we se no significance for `tjan`, the reconstructed temperature here,
 
 #### MAT - ten closest
 
-```{r MAT_sigtesting_fPine, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r MAT_sigtesting_fPine, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 mat_reconst <- run_tf(Pollen, fossil = fossil_data, 
        climate = Climate[,1:2], 
@@ -225,7 +223,7 @@ Once we have validated the methods, we re-run the analysis using each of the thr
 
 ### Model Summary
 
-```{r clim_reconst, cache=TRUE, results='asis', echo=FALSE, warning=FALSE}
+```{r clim_reconst, cache=TRUE, results='asis', echo=TRUE, warning=FALSE}
 
 # This often takes a long time, so I'm using a little trick to get past this point:
 
@@ -263,7 +261,7 @@ if ("wapls_reconst.RDS" %in% list.files("data/output")) {
 
 ```
 
-```{r plot_reconst, fig.width=8, fig.height=9, echo=FALSE}
+```{r plot_reconst, fig.width=8, fig.height=9, echo=TRUE}
 
 get_clim <-  data.frame(age = 1:nrow(wa_reconst$fit),
                         reconst = c(wa_reconst$fit[,1],
@@ -293,5 +291,4 @@ write.csv(reshape2::dcast(get_clim, age ~ model + climate, value.var = "reconst"
           "data/output/clim_reconst.csv")
 write.csv(reshape2::dcast(get_clim, age ~ model + climate, value.var = "err"), 
           "data/output/clim_err.csv")
-
 ```

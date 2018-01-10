@@ -16,7 +16,7 @@ run_tf <- function(pollen, climate, fossil = NULL, func, ...) {
     select(which(colSums(pollen) > 0)) %>% 
     analogue::tran(method = "proportion")
   
-  # If there is no
+  # If there is fossil data
   
   if (!is.null(fossil)) {
     
@@ -49,5 +49,5 @@ run_tf <- function(pollen, climate, fossil = NULL, func, ...) {
   colnames(sig_table)[1] <- "% Explained"
   colnames(sig_table)[2] <- "p-value"
   
-  return(list(table = knitr::kable(sig_table), values = sig_table))
+  return(list(table = knitr::kable(head(sig_table)), values = sig_table))
 }
