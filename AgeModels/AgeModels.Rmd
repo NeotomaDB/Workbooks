@@ -1,15 +1,18 @@
 ---
 title: "Age model and chronology construction"
-author: 'Simon Goring'
+author: "Simon Goring"
 output:
   html_document:
-    theme: sandstone
-    toc: true
-    toc_depth: 3
-    toc_float: false
-    number_sections: true
     code_folding: show
-    keep_md: true
+    keep_md: yes
+    number_sections: yes
+    theme: sandstone
+    toc: yes
+    toc_depth: 3
+    toc_float: no
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
 ---
 
 # Building Chronologies
@@ -40,24 +43,29 @@ library(neotoma)
 library(analogue)
 library(Bchron)
 
-pollen_sites <- get_dataset(datasettype = 'pollen', gpid = 'Switzerland')
-
-pollen_sites
+pollen_sites <- get_dataset(datasettype = 'pollen', gpid = 'Mexico')
 ```
 
-This returns `r length(pollen_sites)` datasets for Switzerland.  You can access the help for `get_dataset()` using the R command `?get_dataset`, and you can then see more information about search terms available.
+This returns `r length(pollen_sites)` datasets for Mexico.  You can access the help for `get_dataset()` using the R command `?get_dataset`, and you can then see more information about search terms available.
 
-Given these datasets, we might as well choose one to download.  In this case, we will be using the Lobisigensee record.  This pollen record is dataset `4213`, part of the European Pollen Database, and we can see more information about the dataset by using the `browse()` function in the `neotoma` package:
+Given the number of sites, it might be a bit annoting to just print out the whole list of sites using `print(pollen_sites)`, or just by typing `pollen_sites`.  There are two ways of viewing the sites spatially, either `plot(pollen_sites)` or `plot_leaflet(pollen_sites)`.  Let's have a bit of fun by using the `plot_leaflet()` function:
+
+```{r}
+plot_leaflet(pollen_sites)
+```
+
+Given these datasets, we might as well choose one to download.  In this case, we will be using the Cenote San Jose Chulchaca record.  This pollen record is dataset `2396`, part of the Latin American Pollen Database, and we can see more information about the dataset by using the `browse()` function in the `neotoma` package:
 
 ```r
-browse(4213)
+browse(2396)
 ```
 
 The record seems well constructed, but we will use it to illustrate reconstruction using `BChron`.  First, we will download the dataset:
 
 ```{r}
-lob_pol <- get_download(pollen_sites$`4213`)
-Stratiplot(lob_pol, sort = 'wa', group="TRSH")
+
+cen_pol <- get_download(2396)
+Stratiplot(cen_pol, sort = 'wa', group="TRSH")
 ```
 
 # Building the Age Model
@@ -65,39 +73,44 @@ Stratiplot(lob_pol, sort = 'wa', group="TRSH")
 The age model is stored within a `download` object's `sample.meta` element.  There is a helper function in the `neotoma` package, `ages()`:
 
 ```r
-ages(lob_pol[[1]])
+ages(cen_pol[[1]])
 ```
 ```{r, echo = FALSE}
-knitr::kable(head(ages(lob_pol[[1]])))
+knitr::kable(head(ages(cen_pol[[1]])))
 ```
 
-These ages are the result of the construction of a chronology.  In the case of the Lobisigensee record we can use the command `length(lob_pol[[1]]$chronologies)` to see that there is only one single chronology.  The function `get_chroncontrol()` provides us with the chronological controls used to generate the age model:
+These ages are the result of the construction of a chronology.  In the case of the Cenote San Jose Chulchaca record we can use the command `length(cen_pol[[1]]$chronologies)` to see that there are three chronologies.  The function `get_chroncontrol()` provides us with the chronological controls used to generate the age model:
 
 ```{r, message = FALSE, warning=FALSE, results='hide'}
-lob_chron <- get_chroncontrol(lob_pol)
+cen_chron <- get_chroncontrol(cen_pol)
 ```
 ```{r, echo=FALSE}
-lob_chron
+cen_chron
 ```
 
-With this record we can pull the depths from `lob_pol[[1]]$sample.meta$depth` to predict the model at, and use the chronology controls as the tie points for the chronology.
+With this record we can pull the depths from `cen_pol[[1]]$sample.meta$depth` to predict the model at, and use the chronology controls as the tie points for the chronology.
 
 ```{r, echo = TRUE, message = FALSE, warning = FALSE, results = 'hide'}
 
-lob_model <- Bchronology(  ages = lob_chron[[1]]$chron.control$age,
-                         ageSds = lob_chron[[1]]$chron.control$age - lob_chron[[1]]$chron.control$age.young,
-                      positions = lob_chron[[1]]$chron.control$depth,
-            positionThicknesses = lob_chron[[1]]$chron.control$thickness,
-               predictPositions = lob_pol[[1]]$sample.meta$depth)
+cen_chron[[1]]$chron.control$thickness[1] <- 5
+cen_chron[[1]]$chron.control$age.young[1] <- cen_chron[[1]]$chron.control$age.young[1] - 1
+
+
+cen_model <- Bchronology(  ages = cen_chron[[1]]$chron.control$age,
+                         ageSds = cen_chron[[1]]$chron.control$age - cen_chron[[1]]$chron.control$age.young,
+                      positions = cen_chron[[1]]$chron.control$depth,
+            positionThicknesses = cen_chron[[1]]$chron.control$thickness,
+               predictPositions = cen_pol[[1]]$sample.meta$depth,
+                      calCurves = c("normal", rep("intcal13", 3)))
 
 ```
 
-When the model is run it gives us the relatively complex `BchronologyRun` object.  The object itself is described in the help for `Bchronology`.  We can look at the posterior estimates for the model using the `lob_model$thetaPredict` element of the `lob_model` variable.  Here we can see that the posteriors are arranged so that each depth is in a single column, with approximately (or exactly) 1000 rows, representing draws from the predicted distributions.
+When the model is run it gives us the relatively complex `BchronologyRun` object.  The object itself is described in the help for `Bchronology`.  We can look at the posterior estimates for the model using the `cen_model$thetaPredict` element of the `cen_model` variable.  Here we can see that the posteriors are arranged so that each depth is in a single column, with approximately (or exactly) 1000 rows, representing draws from the predicted distributions.
 
 Given these results, we can use the `plot` function for the chronology:
 
 ```{r}
-plot(lob_model)
+plot(cen_model)
 ```
 
 To then look at the model, and make assessments.  You now have a new age model for your record!
