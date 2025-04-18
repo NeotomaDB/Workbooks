@@ -1,6 +1,6 @@
 <!-- badges: start -->
 
-[![lifecycle](https://img.shields.io/badge/lifecycle-archived-orange.svg)]
+[![lifecycle](https://img.shields.io/badge/lifecycle-archived-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#archived)
 
 <!-- badges: end -->
 
